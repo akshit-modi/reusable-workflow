@@ -1,0 +1,18 @@
+# caller workflow # for example purpose
+name: Call a reusable workflow
+on:
+  workflow_dispatch:
+
+jobs:
+  call-workflow:
+    uses: akshit-modi/.github/workflows/task-def-notification-workflow.yml@main
+
+  call-workflow-passing-data:
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: akshit-modi/.github/workflows/task-def-notification-workflow.yml@main
+    with:
+      config-path: .github/labeler.yml
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,70 @@
+name: Reusable workflow example # send new task defination build alert to slack
+
+on:
+  workflow_call:
+    inputs:
+      ACTIONS_ROLE:
+        required: true
+        type: string
+      AWS_REGION:
+        required: true
+        type: string
+      TASK_DEFINATION:
+        required: true
+        type: string
+      ECR_REPOSITORY:
+        required: true
+        type: string
+      slack-channel:
+        required: true
+        type: string
+      slack-config-file:
+        required: true
+        type: string
+
+    secrets:
+      SLACK_TEST_URL:
+        required: true
+
+jobs:
+  CI: 
+    name: "CI"
+    runs-on: "ubuntu-latest"
+    steps:
+      # ------ DEPLOYMENT ------
+      - name: "Checkout Code"
+        uses: "actions/checkout@v2"
+  
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ inputs.ACTIONS_ROLE }}
+          role-session-name: actionssession
+          aws-region: ${{ inputs.AWS_REGION }}
+      
+      - name: update task defination revision number
+        id: image 
+        run: |
+          sudo apt-get install jq
+          CURRENT_REVISION=$(aws ecs describe-task-definition --task-definition $TASK_DEFINATION  | jq '.taskDefinition.revision')
+          NEW_REVISION=$((CURRENT_REVISION+1))
+          echo "image=$ECR_REPOSITORY:$NEW_REVISION" >> $GITHUB_OUTPUT
+          
+      - name: create testing image
+        run: |
+          docker build -t $IMAGE .
+          docker images
+        env: 
+          IMAGE: ${{ steps.image.outputs.image }}
+          
+      - name: Slack notify
+        uses: akshit-modi/slack@v0.1.1
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_TEST_URL }}     
+        with: 
+          status: ${{ job.status }}
+          channel: ${{ inputs.slack-channel }}
+          steps: ${{ toJson(steps) }}
+          customParameter: ${{ steps.image.outputs.image }}
+          config: ${{ inputs.slack-config-file }}
+        if: always()
